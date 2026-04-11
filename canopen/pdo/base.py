@@ -336,6 +336,18 @@ class PdoMap:
                 if self.timestamp is not None:
                     self.period = timestamp - self.timestamp
                 self.timestamp = timestamp
+                
+                # Push variable values to node local data_store directly ONLY for RPDOs!
+                # If a TPDO receives its own OS loopback frame, we must never inject it back!
+                if hasattr(self.pdo_node.node, 'set_data') and getattr(self.pdo_node.node, 'rpdo', None) is self.pdo_node:
+                    try:
+                        for var in self.map:
+                            if var.length > 0:
+                                var_data = var.get_data()
+                                self.pdo_node.node.set_data(var.index, var.subindex, var_data)
+                    except Exception as e:
+                        logger.warning("Failed to store PDO data to node: %s", e)
+
                 self.receive_condition.notify_all()
                 for callback in self.callbacks:
                     callback(self)
@@ -562,7 +574,7 @@ class PdoMap:
         logger.info("Starting %s with a period of %s seconds", self.name, self.period)
 
         self._task = self.pdo_node.network.send_periodic(
-            self.cob_id, self.data, self.period)
+            self.cob_id, self.data, self.period, store_task=False)
 
     def stop(self) -> None:
         """Stop transmission."""

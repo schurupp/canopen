@@ -256,7 +256,7 @@ class NmtSlave(NmtBase):
         if heartbeat_time_ms > 0:
             logger.info("Start the heartbeat timer, interval is %d ms", self._heartbeat_time_ms)
             self._send_task = self.network.send_periodic(
-                0x700 + self.id, [self._state], heartbeat_time_ms / 1000.0)
+                0x700 + self.id, [self._state], heartbeat_time_ms / 1000.0, store_task=False)
 
     def stop_heartbeat(self):
         """Stop the heartbeat service."""
