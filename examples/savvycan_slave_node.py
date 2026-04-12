@@ -52,7 +52,7 @@ class TitaniumMotorNode(DeclarativeNode):
     motor_components = IndexMeta("Motor Status Component", 0x4000)
     motor_state = ObjectDef("Motor State", 0x4000, sub=0, type="UNSIGNED8")
     motor_temp = ObjectDef("Motor Temperature", 0x4000, sub=1, type="REAL32")
-    firmware_ver = ObjectDef("Firmware Version", 0x4000, sub=2, type="UNSIGNED32")
+    firmware_ver = ObjectDef("Firmware Version", 0x4000, sub=2, type="UNSIGNED32", access="ro")
 
     # ==============================================================
     # [4, 5] BITFIELD VIRTUAL ACCESSORS

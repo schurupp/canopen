@@ -31,7 +31,7 @@ class {{ node.name|default('CustomCANNode') }}(DeclarativeNode):
 
     # --- Memory Profiles (Object Dictionary) ---
 {% for obj in node.objects %}
-    {{ obj.id }} = ObjectDef("{{ obj.name }}", {{ obj.index }}, sub={{ obj.sub|default(0) }}, type="{{ obj.type }}", default={{ obj.default|default(0) }})
+    {{ obj.id }} = ObjectDef("{{ obj.name }}", {{ obj.index }}, sub={{ obj.sub|default(0) }}, type="{{ obj.type }}", default={{ obj.default|default(0) }}{% if obj.access %}, access="{{ obj.access }}"{% endif %})
 {% endfor %}
 {% if node.bitfields %}
 

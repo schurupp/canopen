@@ -14,12 +14,13 @@ def _get_canopen_type(type_name: str):
 
 class ObjectDef:
     """Descriptor that bridges a declarative Python attribute directly to CANopen Dictionary bindings."""
-    def __init__(self, name: str, index: int, sub: int = 0, type: str = "UNSIGNED16", default=0):
+    def __init__(self, name: str, index: int, sub: int = 0, type: str = "UNSIGNED16", default=0, access: str = "rw"):
         self.name = name
         self.index = index
         self.sub = sub
         self.type_name = type
         self.default = default
+        self.access = access
         
     def _resolve_var(self, instance):
         var = instance.sdo[self.index]
@@ -180,6 +181,7 @@ class DeclarativeNode(LocalNode):
                 var = ODVariable(attr.name, attr.index, attr.sub)
                 var.data_type = _get_canopen_type(attr.type_name)
                 var.value = attr.default
+                var.access_type = attr.access
                 od.add_object(var)
             else:
                 record_name = index_labels.get(index, f"Dynamic Component {hex(index)}")
@@ -190,6 +192,7 @@ class DeclarativeNode(LocalNode):
                     var = ODVariable(attr.name, attr.index, attr.sub)
                     var.data_type = _get_canopen_type(attr.type_name)
                     var.value = attr.default
+                    var.access_type = attr.access
                     record.add_member(var)
                 
                 # Provide the CANopen generic sub=0 element count automatically if the user didn't!
@@ -198,6 +201,7 @@ class DeclarativeNode(LocalNode):
                     length_var = ODVariable("Number of Entries", index, 0)
                     length_var.data_type = _get_canopen_type("UNSIGNED8")
                     length_var.value = num_entries
+                    length_var.access_type = 'ro'
                     record.add_member(length_var)
                 
                 od.add_object(record)
