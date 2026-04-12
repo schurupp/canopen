@@ -13,27 +13,26 @@ def _get_canopen_type(type_name: str):
     raise ValueError(f"Unknown CANopen datatype: {type_name}")
 
 class ObjectDef:
-    """Declarative descriptor for an Object Dictionary Variable."""
+    """Descriptor that bridges a declarative Python attribute directly to CANopen Dictionary bindings."""
     def __init__(self, name: str, index: int, sub: int = 0, type: str = "UNSIGNED16", default=0):
         self.name = name
         self.index = index
         self.sub = sub
         self.type_name = type
         self.default = default
+        
+    def _resolve_var(self, instance):
+        var = instance.sdo[self.index]
+        if not hasattr(var, 'raw'):
+            var = var[self.sub]
+        return var
 
     def __get__(self, instance, owner):
-        if instance is None:
-            return self
-        var = instance.sdo[self.index]
-        if self.sub > 0:
-            var = var[self.sub]
-        return var.raw
+        if instance is None: return self
+        return self._resolve_var(instance).raw
 
     def __set__(self, instance, value):
-        var = instance.sdo[self.index]
-        if self.sub > 0:
-            var = var[self.sub]
-        var.raw = value
+        self._resolve_var(instance).raw = value
 
 class BitField:
     """Declarative descriptor mapping binary slice across an ObjectDef."""
@@ -48,12 +47,16 @@ class BitField:
         except TypeError:
             pass
 
+    def _resolve_var(self, instance):
+        var = instance.sdo[self.target.index]
+        if not hasattr(var, 'bits'):
+            var = var[self.target.sub]
+        return var
+
     def __get__(self, instance, owner):
         if instance is None:
             return self
-        var = instance.sdo[self.target.index]
-        if self.target.sub > 0:
-            var = var[self.target.sub]
+        var = self._resolve_var(instance)
         
         raw_val = var.bits[self.bits]
         if self.field_type is bool:
@@ -63,9 +66,7 @@ class BitField:
         return raw_val
 
     def __set__(self, instance, value):
-        var = instance.sdo[self.target.index]
-        if self.target.sub > 0:
-            var = var[self.target.sub]
+        var = self._resolve_var(instance)
             
         if self.field_type is bool:
             raw_val = 1 if value else 0

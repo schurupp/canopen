@@ -1,0 +1,61 @@
+"""
+Auto-generated Declarative CANopen Node
+"""
+from enum import Enum
+from wrapper.node import DeclarativeNode, ObjectDef, BitField, RPDOMap, TPDOMap, IndexMeta, on_object_write
+
+# ==========================================
+# 1. Enums
+# ==========================================
+{% for enum in node.enums %}
+class {{ enum.name }}(Enum):
+{% for key, val in enum.values.items() %}
+    {{ key }} = {{ val }}
+{% endfor %}
+{% if not enum.values %}
+    pass
+{% endif %}
+{% endfor %}
+
+# ==========================================
+# 2. Declarative Node Class
+# ==========================================
+class {{ node.name|default('CustomCANNode') }}(DeclarativeNode):
+{% if node.index_metas %}
+
+    # --- Component Labels (IndexMeta) ---
+{% for meta in node.index_metas %}
+    {{ meta.id }} = IndexMeta("{{ meta.name }}", {{ meta.index }})
+{% endfor %}
+{% endif %}
+
+    # --- Memory Profiles (Object Dictionary) ---
+{% for obj in node.objects %}
+    {{ obj.id }} = ObjectDef("{{ obj.name }}", {{ obj.index }}, sub={{ obj.sub|default(0) }}, type="{{ obj.type }}", default={{ obj.default|default(0) }})
+{% endfor %}
+{% if node.bitfields %}
+
+    # --- Bitfield Alignments ---
+{% for bf in node.bitfields %}
+    {{ bf.name }} = BitField(target={{ bf.target }}, bits={{ bf.bits }}{% if bf.type %}, type={{ bf.type }}{% endif %}{% if bf.enum_class %}, enum_class={{ bf.enum_class }}{% endif %})
+{% endfor %}
+{% endif %}
+{% if node.rpdos or node.tpdos %}
+
+    # --- PDO Channels ---
+{% for rpdo in node.rpdos %}
+    {{ rpdo.name }} = RPDOMap({{ rpdo.cob_id }}, 254, payload=[{{ rpdo.payload|join(', ') }}])
+{% endfor %}
+{% for tpdo in node.tpdos %}
+    {{ tpdo.name }} = TPDOMap({{ tpdo.cob_id }}, {{ tpdo.trans_type|default(254) }}, payload=[{{ tpdo.payload|join(', ') }}])
+{% endfor %}
+{% endif %}
+{% if node.logics %}
+
+    # --- Business Logic Automation ---
+{% for logic in node.logics %}
+    @on_object_write({{ logic.target }})
+    def {{ logic.name }}(self, idx, sub, val):
+{{ logic.code | indent(8) }}
+{% endfor %}
+{% endif %}

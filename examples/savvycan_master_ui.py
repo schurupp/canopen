@@ -68,7 +68,7 @@ def main():
     print(f"Connecting Raw Analyzer to {NETWORK_INTERFACE}:{NETWORK_CHANNEL}...")
     
     try:
-        bus = can.interface.Bus(interface=NETWORK_INTERFACE, channel=NETWORK_CHANNEL, bitrate=500000, receive_own_messages=False)
+        bus = can.interface.Bus(interface=NETWORK_INTERFACE, channel=NETWORK_CHANNEL, bitrate=500000)
     except TypeError:
         bus = can.interface.Bus(bustype=NETWORK_INTERFACE, channel=NETWORK_CHANNEL, bitrate=500000)
 
