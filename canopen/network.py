@@ -210,7 +210,7 @@ class Network(MutableMapping):
         self.check()
 
     def send_periodic(
-        self, can_id: int, data: bytes, period: float, remote: bool = False
+        self, can_id: int, data: bytes, period: float, remote: bool = False, store_task: bool = True
     ) -> PeriodicMessageTask:
         """Start sending a message periodically.
 
@@ -222,11 +222,14 @@ class Network(MutableMapping):
             Seconds between each message
         :param remote:
             indicates if the message frame is a remote request to the slave node
+        :param store_task:
+            Whether to use hardware-accelerated periodic messages (True) or fallback
+            to python thread-based scheduling (False). Useful to bypass IXXAT hardware limits.
 
         :return:
             An task object with a ``.stop()`` method to stop the transmission
         """
-        return PeriodicMessageTask(can_id, data, period, self.bus, remote)
+        return PeriodicMessageTask(can_id, data, period, self.bus, remote, store_task)
 
     def notify(self, can_id: int, data: bytearray, timestamp: float) -> None:
         """Feed incoming message to this library.
@@ -309,6 +312,7 @@ class PeriodicMessageTask:
         period: float,
         bus,
         remote: bool = False,
+        store_task: bool = True
     ):
         """
         :param can_id:
@@ -319,16 +323,23 @@ class PeriodicMessageTask:
             Seconds between each message
         :param can.BusABC bus:
             python-can bus to use for transmission
+        :param store_task:
+            indicates whether to try hardware-accelerated loops (IXXAT limits apply)
         """
         self.bus = bus
         self.period = period
+        self.store_task = store_task
         self.msg = can.Message(is_extended_id=can_id > 0x7FF,
                                arbitration_id=can_id,
                                data=data, is_remote_frame=remote)
         self._start()
 
     def _start(self):
-        self._task = self.bus.send_periodic(self.msg, self.period)
+        try:
+            self._task = self.bus.send_periodic(self.msg, self.period, store_task=self.store_task)
+        except TypeError:
+            # Fallback for older python-can versions that don't support store_task
+            self._task = self.bus.send_periodic(self.msg, self.period)
 
     def stop(self):
         """Stop transmission"""

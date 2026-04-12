@@ -1,0 +1,72 @@
+{
+  "name": "TitaniumMotorNode",
+  "id": 2,
+  "enums": [
+    {
+      "name": "SystemState",
+      "values": {
+        "INIT": 0,
+        "READY": 1,
+        "ACTIVE": 2,
+        "ERROR": 3
+      }
+    }
+  ],
+  "index_metas": [
+    {
+      "id": "motor_components",
+      "name": "Motor Status Component",
+      "index": "0x4000"
+    },
+    {
+      "id": "axis_data_array",
+      "name": "Axis Position Array",
+      "index": "0x3000"
+    }
+  ],
+  "objects": [
+    { "id": "master_command", "name": "Master Command", "index": "0x2000", "sub": 0, "type": "UNSIGNED16" },
+    { "id": "global_fault", "name": "Global Fault", "index": "0x2001", "sub": 0, "type": "UNSIGNED16" },
+    { "id": "axis_pos_1", "name": "Axis 1 Position", "index": "0x3000", "sub": 1, "type": "UNSIGNED32" },
+    { "id": "axis_pos_2", "name": "Axis 2 Position", "index": "0x3000", "sub": 2, "type": "UNSIGNED32" },
+    { "id": "axis_pos_3", "name": "Axis 3 Position", "index": "0x3000", "sub": 3, "type": "UNSIGNED32" },
+    { "id": "motor_state", "name": "Motor State", "index": "0x4000", "sub": 0, "type": "UNSIGNED8" },
+    { "id": "motor_temp", "name": "Motor Temperature", "index": "0x4000", "sub": 1, "type": "REAL32" },
+    { "id": "firmware_ver", "name": "Firmware Version", "index": "0x4000", "sub": 2, "type": "UNSIGNED32" }
+  ],
+  "bitfields": [
+    { "name": "axis_2_limit", "target": "axis_pos_2", "bits": "[31]", "type": "bool" },
+    { "name": "active_state", "target": "motor_state", "bits": "[0, 1, 2]", "type": "SystemState", "enum_class": "SystemState" },
+    { "name": "is_overheated", "target": "motor_state", "bits": "[3]", "type": "bool" }
+  ],
+  "rpdos": [
+    { "name": "rpdo1", "cob_id": "0x205", "payload": ["master_command"] },
+    { "name": "rpdo2", "cob_id": "0x305", "payload": ["axis_pos_1", "axis_pos_2"] },
+    { "name": "rpdo3", "cob_id": "0x405", "payload": ["axis_pos_3"] },
+    { "name": "rpdo4", "cob_id": "0x505", "payload": ["global_fault"] }
+  ],
+  "tpdos": [
+    { "name": "tpdo1", "cob_id": "0x185", "payload": ["motor_state"] },
+    { "name": "tpdo2", "cob_id": "0x285", "payload": ["axis_pos_1", "axis_pos_2"] },
+    { "name": "tpdo3", "cob_id": "0x385", "payload": ["motor_temp"] },
+    { "name": "tpdo4", "cob_id": "0x485", "payload": ["firmware_ver"] },
+    { "name": "tpdo5", "cob_id": "0x585", "trans_type": 10, "payload": ["axis_pos_1"] }
+  ],
+  "logics": [
+    {
+      "name": "tracking_log",
+      "target": "axis_pos_3",
+      "code": "print(f\"[LOGIC 7] Axis 3 shifted dynamically via CAN: {val}\")"
+    },
+    {
+      "name": "halt_sequence",
+      "target": "master_command",
+      "code": "if val == 0xDEAD:\n    print(\"[LOGIC 8] Emergency Halt Command (0xDEAD) Received!\")\n    self.global_fault = 1"
+    },
+    {
+      "name": "thermal_throttle",
+      "target": "motor_temp",
+      "code": "if val > 80.0 and self.active_state == SystemState.ACTIVE:\n    self.is_overheated = True\n    self.active_state = SystemState.ERROR\n    self.axis_pos_1 = 0\n    self.axis_pos_2 = 0\n    self.logic.disable('tracking_log')"
+    }
+  ]
+}

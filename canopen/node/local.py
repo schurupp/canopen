@@ -36,6 +36,7 @@ class LocalNode(BaseNode):
         self.nmt = NmtSlave(self.id, self)
         # Let self.nmt handle writes for 0x1017
         self.add_write_callback(self.nmt.on_write)
+        self.add_write_callback(self._on_local_write)
         self.emcy = EmcyProducer(0x80 + self.id)
 
     def associate_network(self, network: canopen.network.Network):
@@ -115,13 +116,13 @@ class LocalNode(BaseNode):
         ):
             raise SdoAbortedError(0x06070010)
 
+        # Store data FIRST so that callbacks that evaluate node state see the fresh value
+        self.data_store.setdefault(index, {})
+        self.data_store[index][subindex] = bytes(data)
+
         # Try callbacks
         for callback in self._write_callbacks:
             callback(index=index, subindex=subindex, od=obj, data=data)
-
-        # Store data
-        self.data_store.setdefault(index, {})
-        self.data_store[index][subindex] = bytes(data)
 
     def _find_object(self, index, subindex):
         if index not in self.object_dictionary:
@@ -135,3 +136,19 @@ class LocalNode(BaseNode):
                 raise SdoAbortedError(0x06090011)
             obj = obj[subindex]
         return obj
+
+    def _on_local_write(self, index: int, subindex: int, od, data: bytes, **kwargs):
+        """Synchronize node writes to the TPDO buffers and evaluate event-driven transmission."""
+        for pdo_map in self.tpdo.map.values():
+            if not pdo_map.enabled:
+                continue
+            
+            updated = False
+            for var in pdo_map.map:
+                if var.index == index and var.subindex == subindex:
+                    var.set_data(data)
+                    updated = True
+            
+            # Event-driven transmission types 254 (manufacturer) and 255 (device profile)
+            if updated and pdo_map.trans_type in (254, 255):
+                pdo_map.transmit()
