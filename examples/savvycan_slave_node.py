@@ -21,7 +21,7 @@ from enum import Enum
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import canopen
-from wrapper.node import DeclarativeNode, ObjectDef, BitField, RPDOMap, TPDOMap, on_object_write, IndexMeta
+from wrapper.node import DeclarativeNode, ObjectDef, BitField, RPDOMap, TPDOMap, on_object_write, IndexMeta, DummyDef
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -52,7 +52,7 @@ class TitaniumMotorNode(DeclarativeNode):
     motor_components = IndexMeta("Motor Status Component", 0x4000)
     motor_state = ObjectDef("Motor State", 0x4000, sub=0, type="UNSIGNED8")
     motor_temp = ObjectDef("Motor Temperature", 0x4000, sub=1, type="REAL32")
-    firmware_ver = ObjectDef("Firmware Version", 0x4000, sub=2, type="UNSIGNED32", access="ro")
+    firmware_ver = ObjectDef("Firmware Version", 0x4000, sub=2, type="UNSIGNED32", access="ro", default=123456789)
 
     # ==============================================================
     # [4, 5] BITFIELD VIRTUAL ACCESSORS
@@ -66,19 +66,21 @@ class TitaniumMotorNode(DeclarativeNode):
     is_overheated = BitField(target=motor_state, bits=[3], type=bool)
 
     # ==============================================================
-    # [6] EXTREME PDO CAPACITY
+    # [6] PDO MAPPINGS (Dummies natively supported!)
     # ==============================================================
-    # Fully saturating all 4 RX and TX channels per Node specs
-    rpdo1 = RPDOMap(0x205, 254, payload=[master_command])
-    rpdo2 = RPDOMap(0x305, 254, payload=[axis_pos_1, axis_pos_2])
-    rpdo3 = RPDOMap(0x405, 254, payload=[axis_pos_3])
-    rpdo4 = RPDOMap(0x505, 254, payload=[global_fault])
+    padding_spacer = DummyDef(16)
+    
+    rpdo1 = RPDOMap(0x202, 254, payload=[master_command])
+    rpdo2 = RPDOMap(0x302, 254, payload=[axis_pos_1, axis_pos_2])
+    rpdo3 = RPDOMap(0x402, 254, payload=[axis_pos_3])
+    rpdo4 = RPDOMap(0x502, 254, payload=[global_fault])
 
-    tpdo1 = TPDOMap(0x185, 254, payload=[motor_state])
-    tpdo2 = TPDOMap(0x285, 254, payload=[axis_pos_1, axis_pos_2])
-    tpdo3 = TPDOMap(0x385, 254, payload=[motor_temp])
-    tpdo4 = TPDOMap(0x485, 254, payload=[firmware_ver])
-    tpdo5 = TPDOMap(cob_id=0x585, trans_type=10, payload=[axis_pos_1])
+    tpdo1 = TPDOMap(0x182, 254, payload=[motor_state])
+    # Showcasing canonical CANopen Dummy padding in between mapped data
+    tpdo2 = TPDOMap(0x282, 254, payload=[axis_pos_1, axis_pos_2])
+    tpdo3 = TPDOMap(0x382, 254, payload=[motor_temp, padding_spacer])
+    tpdo4 = TPDOMap(0x482, 254, payload=[firmware_ver])
+    tpdo5 = TPDOMap(cob_id=0x582, trans_type=10, payload=[axis_pos_1])
 
     # ==============================================================
     # [7, 8, 9, 10] COMPLEX BUSINESS LOGIC EVALUATORS
@@ -133,3 +135,15 @@ if __name__ == "__main__":
         pass
     finally:
         network.disconnect()
+
+################## Overriding an actual business logic
+# # A custom logic written exclusively in the python Automation Script
+# def override_halt(index, subindex, value):
+#     print("Test Engineer intercepted the Halt!")
+#     # Do something highly specific...
+
+# # 1. Disable the simulated Node's default reaction to Master Commands
+# node.logic.disable('halt_sequence')
+
+# # 2. Re-bind the Master Command memory block to the new Mock function!
+# node.logic.register(target=TitaniumMotorNode.master_command, func=override_halt, name="halt_sequence")

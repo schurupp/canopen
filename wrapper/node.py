@@ -35,6 +35,14 @@ class ObjectDef:
     def __set__(self, instance, value):
         self._resolve_var(instance).raw = value
 
+class DummyDef(ObjectDef):
+    """Virtual padding component for aligning PDO byte structures natively according to CANopen specification."""
+    def __init__(self, size_bits: int):
+        idx = {8: 0x0005, 16: 0x0006, 32: 0x0007}.get(size_bits)
+        if not idx:
+            raise ValueError("CANopen spec only officially allows 8, 16, or 32 bit payload dummies.")
+        super().__init__(f"Dummy Padding {size_bits}-bit", idx, type=f"UNSIGNED{size_bits}")
+
 class BitField:
     """Declarative descriptor mapping binary slice across an ObjectDef."""
     def __init__(self, target: ObjectDef, bits: List[int], type=int, enum_class=None):
