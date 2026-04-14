@@ -2,7 +2,7 @@
 Auto-generated Declarative CANopen Node
 """
 from enum import Enum
-from wrapper.node import DeclarativeNode, ObjectDef, BitField, RPDOMap, TPDOMap, IndexMeta, on_object_write
+from wrapper.node import DeclarativeNode, ObjectDef, BitField, RPDOMap, TPDOMap, IndexMeta, on_object_write, on_pdo_receive
 
 # ==========================================
 # 1. Enums
@@ -54,8 +54,14 @@ class {{ node.name|default('CustomCANNode') }}(DeclarativeNode):
 
     # --- Business Logic Automation ---
 {% for logic in node.logics %}
+{% if logic.type == 'rpdo' %}
+    @on_pdo_receive({{ logic.target }})
+    def {{ logic.name }}(self, pdo_map):
+{{ logic.code | indent(8) }}
+{% else %}
     @on_object_write({{ logic.target }})
     def {{ logic.name }}(self, idx, sub, val):
 {{ logic.code | indent(8) }}
+{% endif %}
 {% endfor %}
 {% endif %}

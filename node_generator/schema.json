@@ -37,7 +37,7 @@
   "bitfields": [
     { "name": "axis_2_limit", "target": "axis_pos_2", "bits": "[31]", "type": "bool" },
     { "name": "active_state", "target": "motor_state", "bits": "[0, 1, 2]", "type": "SystemState", "enum_class": "SystemState", "default": "SystemState.ACTIVE" },
-    { "name": "is_overheated", "target": "motor_state", "bits": "[3]", "type": "bool", "default": False }
+    { "name": "is_overheated", "target": "motor_state", "bits": "[3]", "type": "bool", "default": "False" }
   ],
   "rpdos": [
     { "name": "rpdo1", "cob_id": "0x205", "payload": ["master_command"] },
