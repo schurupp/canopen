@@ -45,11 +45,12 @@ class DummyDef(ObjectDef):
 
 class BitField:
     """Declarative descriptor mapping binary slice across an ObjectDef."""
-    def __init__(self, target: ObjectDef, bits: List[int], type=int, enum_class=None):
+    def __init__(self, target: ObjectDef, bits: List[int], type=int, enum_class=None, default=None):
         self.target = target
         self.bits = bits
         self.field_type = type
         self.enum_class = enum_class
+        self.default = default
         try:
             if issubclass(type, Enum):
                 self.enum_class = type
@@ -110,6 +111,13 @@ def on_object_write(target: ObjectDef):
     """Decorator to bind business logic to an ObjectDef write event."""
     def decorator(func):
         func.__canopen_trigger__ = target
+        return func
+    return decorator
+
+def on_pdo_receive(target_pdo: RPDOMap):
+    """Decorator to bind bulk logic instantaneously across an entire mapped asynchronous RPDO block."""
+    def decorator(func):
+        func.__canopen_rpdo_trigger__ = target_pdo.cob_id
         return func
     return decorator
 
@@ -283,6 +291,13 @@ class DeclarativeNode(LocalNode):
 
         super().__init__(node_id, od)
 
+        # 4. Inject Default values into BitFields structurally now that Memory Variables strictly exist
+        for attr_name in dir(cls):
+            attr = getattr(cls, attr_name)
+            if isinstance(attr, BitField) and getattr(attr, 'default', None) is not None:
+                # Descriptor mapping automatically routes and bit-slices to the underlying dictionary natively!
+                setattr(self, attr_name, attr.default)
+
         # -------------------------------------------------------------
         # Business Logic Hook Router
         # -------------------------------------------------------------
@@ -323,6 +338,19 @@ class DeclarativeNode(LocalNode):
             self.rpdo.read(from_od=True)
             self.tpdo.read(from_od=True)
             
+            # --- Bind live RPDO bulk-receive hooks cleanly inside the configured Network engine ---
+            for attr_name in dir(self):
+                try:
+                    attr = getattr(self, attr_name)
+                    if hasattr(attr, '__canopen_rpdo_trigger__'):
+                        cob = attr.__canopen_rpdo_trigger__
+                        for pd_map in self.rpdo.map.values():
+                            if pd_map.cob_id == cob:
+                                pd_map.add_callback(attr)
+                                break
+                except Exception:
+                    pass
+            
             # 2. Cycle the NMT state machine upwards according to CANopen standard
             self.nmt.state = 'INITIALISING'
             self.nmt.state = 'PRE-OPERATIONAL'
@@ -347,4 +375,53 @@ class DeclarativeNode(LocalNode):
                 if 1 <= tt <= 240:
                     if self._sync_counter % tt == 0:
                         pdo_map.transmit()
+
+    def toggle_service(self, service: str, enabled: bool, target: int = None):
+        """Unified command to explicitly toggle core CANopen background services or specific components!"""
+        service = service.lower()
+        if service == 'pdo':
+            self.toggle_service('tpdo', enabled, target)
+            self.toggle_service('rpdo', enabled, target)
+            return
+            
+        if service == 'tpdo' and hasattr(self, 'tpdo'):
+            targets = [target] if target is not None else self.tpdo.map.keys()
+            for k in targets:
+                if k in self.tpdo.map:
+                    self.tpdo.map[k].enabled = enabled
+            if not enabled and target is None: 
+                self.tpdo.stop()
+                
+        elif service == 'rpdo' and hasattr(self, 'rpdo'):
+            targets = [target] if target is not None else self.rpdo.map.keys()
+            for k in targets:
+                if k in self.rpdo.map:
+                    self.rpdo.map[k].enabled = enabled
+                
+        elif service == 'nmt' and hasattr(self, 'nmt'):
+            if not enabled:
+                self.nmt.stop_heartbeat()
+            else:
+                try: 
+                    hb_time = self.sdo[0x1017].raw
+                    if hb_time > 0: self.nmt.start_heartbeat(hb_time)
+                except KeyError: pass
+                
+        elif service == 'sdo' and hasattr(self, 'sdo') and self.network:
+            if target is not None:
+                try:
+                    obj = self.sdo[target].od
+                    if not enabled:
+                        if not hasattr(obj, '_original_access'):
+                            obj._original_access = obj.access_type
+                        obj.access_type = '' # Mathematically strips Read/Write privileges instantly throwing native SDO Aborts upon Master access
+                    else:
+                        if hasattr(obj, '_original_access'):
+                            obj.access_type = obj._original_access
+                except KeyError: pass
+            else:
+                if not enabled:
+                    self.network.unsubscribe(self.sdo.rx_cobid, self.sdo.on_request)
+                else:
+                    self.network.subscribe(self.sdo.rx_cobid, self.sdo.on_request)
 

@@ -21,7 +21,7 @@ from enum import Enum
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import canopen
-from wrapper.node import DeclarativeNode, ObjectDef, BitField, RPDOMap, TPDOMap, on_object_write, IndexMeta, DummyDef
+from wrapper.node import DeclarativeNode, ObjectDef, BitField, RPDOMap, TPDOMap, on_object_write, on_pdo_receive, IndexMeta, DummyDef
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -113,7 +113,12 @@ class TitaniumMotorNode(DeclarativeNode):
             self.axis_pos_2 = 0
             
             # Then 4. Utilize the Behavior API to deliberately kill another sub-routine!
-            self.logic.disable('tracking_log') 
+            self.logic.disable('tracking_log')
+
+    # 11. BULK Execution - Instantly Triggered on Asynchronous Receive Maps!
+    @on_pdo_receive(rpdo2)
+    def handle_bulk_axes(self, pdo_map):
+        print(f"[LOGIC 11] Massive RPDO Payload successfully decoded and updated Memory Buffers!") 
 
 if __name__ == "__main__":
     network = canopen.Network()
