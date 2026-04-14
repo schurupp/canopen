@@ -37,7 +37,7 @@ class {{ node.name|default('CustomCANNode') }}(DeclarativeNode):
 
     # --- Bitfield Alignments ---
 {% for bf in node.bitfields %}
-    {{ bf.name }} = BitField(target={{ bf.target }}, bits={{ bf.bits }}{% if bf.type %}, type={{ bf.type }}{% endif %}{% if bf.enum_class %}, enum_class={{ bf.enum_class }}{% endif %})
+    {{ bf.name }} = BitField(target={{ bf.target }}, bits={{ bf.bits }}{% if bf.type %}, type={{ bf.type }}{% endif %}{% if bf.enum_class %}, enum_class={{ bf.enum_class }}{% endif %}{% if bf.default is defined %}, default={{ bf.default }}{% endif %})
 {% endfor %}
 {% endif %}
 {% if node.rpdos or node.tpdos %}

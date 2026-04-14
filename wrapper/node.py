@@ -45,11 +45,12 @@ class DummyDef(ObjectDef):
 
 class BitField:
     """Declarative descriptor mapping binary slice across an ObjectDef."""
-    def __init__(self, target: ObjectDef, bits: List[int], type=int, enum_class=None):
+    def __init__(self, target: ObjectDef, bits: List[int], type=int, enum_class=None, default=None):
         self.target = target
         self.bits = bits
         self.field_type = type
         self.enum_class = enum_class
+        self.default = default
         try:
             if issubclass(type, Enum):
                 self.enum_class = type
@@ -282,6 +283,13 @@ class DeclarativeNode(LocalNode):
             od.add_object(heartbeat)
 
         super().__init__(node_id, od)
+
+        # 4. Inject Default values into BitFields structurally now that Memory Variables strictly exist
+        for attr_name in dir(cls):
+            attr = getattr(cls, attr_name)
+            if isinstance(attr, BitField) and getattr(attr, 'default', None) is not None:
+                # Descriptor mapping automatically routes and bit-slices to the underlying dictionary natively!
+                setattr(self, attr_name, attr.default)
 
         # -------------------------------------------------------------
         # Business Logic Hook Router
